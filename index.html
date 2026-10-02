@@ -1,0 +1,39 @@
+const SYS = "Sen Asilbek Xushvaqtovning kontent bo'yicha AI yordamchisisan. Asilbek talaba, sun'iy intellekt bo'yicha tajribasi bor kontent-meykerdir, Telegram va Instagram uchun kontent yaratadi. Qoidalar: o'zbek tilida, oddiy va qisqa javob ber. Foydalanuvchining g'oyasini bittadan savol bilan aniqlashtir (auditoriya, mavzu, format). Keyin g'oyani rivojlantir: Instagram uchun Reels ssenariysi, karusel rejasi, caption va hashtag; Telegram uchun post matni va qiziqarli kirish jumlasi. Bir vaqtda faqat bitta savol ber. Bilmagan narsangni o'ylab topma.";
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "POST kerak" });
+
+  let messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  // Xarajatni cheklash: oxirgi 10 ta xabar, har biri 1000 belgigacha
+  messages = messages
+    .slice(-10)
+    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 1000) }));
+
+  if (!messages.length  messages[0].role !== "user"  messages[messages.length - 1].role !== "user") {
+    return res.status(400).json({ error: "Xabar noto'g'ri" });
+  }
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-5-5",
+        max_tokens: 800,
+        system: SYS,
+        messages,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(502).json({ error: "AI xatosi" });
+    const text = (data.content  []).map((c) => c.text  "").join("");
+    return res.status(200).json({ text });
+  } catch (e) {
+    return res.status(500).json({ error: "Server xatosi" });
+  }
+}
